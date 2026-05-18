@@ -36,6 +36,7 @@ void create_explosion(float x, float y, SDL_Color color, int force) {
     }
 }
 
+// 🐍 PYTHON BAĞLANTILI AKILLI HARİTA BAŞLATICI
 void init_clash_arena() {
     game_state = STATE_PLAYING;
     blue_elixir = 5.0f;
@@ -47,21 +48,52 @@ void init_clash_arena() {
     for (int i = 0; i < MAX_PARTICLES; i++) particles[i].active = false;
     for (int i = 0; i < MAX_WALLS; i++) walls[i].active = false;
 
-    // Oyuncu Kuleleri (Sol)
-    towers[0] = (Tower){ 70, SCREEN_HEIGHT/2, 3000, 3000, true, true, TEAM_BLUE };
-    towers[1] = (Tower){ 180, 150, 1600, 1600, false, true, TEAM_BLUE };
-    towers[2] = (Tower){ 180, 450, 1600, 1600, false, true, TEAM_BLUE };
+    // Python'ın ürettiği dosyayı açıyoruz
+    FILE* file = fopen("harita.txt", "r");
+    if (file == NULL) {
+        // Eğer dosya henüz üretilmediyse oyun çökmesin diye varsayılan kuleleri yükle (Güvenli Mod)
+        towers[0] = (Tower){ 70, SCREEN_HEIGHT/2, 3000, 3000, true, true, TEAM_BLUE };
+        towers[1] = (Tower){ 180, 150, 1600, 1600, false, true, TEAM_BLUE };
+        towers[2] = (Tower){ 180, 450, 1600, 1600, false, true, TEAM_BLUE };
+        towers[3] = (Tower){ 730, SCREEN_HEIGHT/2, 3000, 3000, true, true, TEAM_RED };
+        towers[4] = (Tower){ 620, 150, 1600, 1600, false, true, TEAM_RED };
+        towers[5] = (Tower){ 620, 450, 1600, 1600, false, true, TEAM_RED };
+        return;
+    }
 
-    // Düşman Kuleleri (Sağ)
+    int val;
+    int blue_tower_count = 1; 
+    int red_tower_count = 4;  
     int hp_bonus = (current_level - 1) * 500;
-    towers[3] = (Tower){ 730, SCREEN_HEIGHT/2, 3000 + hp_bonus, 3000 + hp_bonus, true, true, TEAM_RED };
-    towers[4] = (Tower){ 620, 150, 1600 + hp_bonus, 1600 + hp_bonus, false, true, TEAM_RED };
-    towers[5] = (Tower){ 620, 450, 1600 + hp_bonus, 1600 + hp_bonus, false, true, TEAM_RED };
+
+    // Python matrisini oku ve kuleleri ekrana dinamik yerleştir
+    for (int y = 0; y < 20; y++) {
+        for (int x = 0; x < 25; x++) {
+            if (fscanf(file, "%d", &val) != 1) break;
+            
+            float real_x = x * (SCREEN_WIDTH / 25.0f) + 15;
+            float real_y = y * ((SCREEN_HEIGHT - 100) / 20.0f) + 15;
+
+            if (val == 4) { // Mavi Kral
+                towers[0] = (Tower){ real_x, real_y, 3000, 3000, true, true, TEAM_BLUE };
+            }
+            else if (val == 3 && blue_tower_count < 3) { // Mavi Yan Kuleler
+                towers[blue_tower_count++] = (Tower){ real_x, real_y, 1600, 1600, false, true, TEAM_BLUE };
+            }
+            else if (val == 6) { // Kırmızı Kral
+                towers[3] = (Tower){ real_x, real_y, 3000 + hp_bonus, 3000 + hp_bonus, true, true, TEAM_RED };
+            }
+            else if (val == 5 && red_tower_count < 6) { // Kırmızı Yan Kuleler
+                towers[red_tower_count++] = (Tower){ real_x, real_y, 1600 + hp_bonus, 1600 + hp_bonus, false, true, TEAM_RED };
+            }
+        }
+    }
+    fclose(file);
 }
 
 void trigger_chat_message(const char* message) {
     active_chat_message = message;
-    chat_message_timer = 90;
+    chat_message_timer = 120;
 }
 
 void spawn_wall(float mx, float my) {
@@ -129,7 +161,6 @@ void update_game_logic() {
 
     if (chat_message_timer > 0) chat_message_timer--;
 
-    // Yapay Zeka Karar Mekanizması
     ai_timer++;
     if (ai_timer % 180 == 0) {
         float r_y = (rand() % 2 == 0) ? 150 : 450;
@@ -141,7 +172,7 @@ void update_game_logic() {
         else spawn_card(TEAM_RED, rand() % 3, 620, r_y);
     }
 
-    // ⚔️ AKILLI DÜELLO VE SAVAŞ DÖNGÜSÜ
+    // ⚔️ AKILLI DÜELLO SAVAŞ DÖNGÜSÜ
     for (int i = 0; i < MAX_UNITS; i++) {
         if (!units[i].active) continue;
 
@@ -156,43 +187,39 @@ void update_game_logic() {
                 float d = sqrt(pow(units[u].x - units[i].x, 2) + pow(units[u].y - units[i].y, 2));
                 if (d < min_enemy_unit_dist) {
                     min_enemy_unit_dist = d;
-                    units[i].target_unit_idx = u; // Hedef kilitlendi!
+                    units[i].target_unit_idx = u; 
                 }
             }
         }
 
-        // 🔥 DURUM 1: EĞER YAKINDA DÜŞMAN ASKERİ VARSA (BİRBİRLERİNİ ÖLDÜRME MANTIĞI)
+        // 🔥 DURUM 1: DÜŞMAN ASKERLERİNİN BİRBİRİNİ ÖLDÜRME MANTIĞI
         if (units[i].target_unit_idx != -1 && units[units[i].target_unit_idx].active) {
             Unit* enemy = &units[units[i].target_unit_idx];
             float edx = enemy->x - units[i].x;
             float edy = enemy->y - units[i].y;
             float edist = sqrt(edx*edx + edy*edy);
 
-            if (edist > 22.0f) { // Yakınlaş
+            if (edist > 22.0f) { 
                 units[i].x += (edx / edist) * units[i].speed;
                 units[i].y += (edy / edist) * units[i].speed;
-            } else { // Saldır!
+            } else { 
                 if (units[i].attack_cooldown <= 0) {
                     enemy->hp -= units[i].damage;
                     units[i].attack_cooldown = 45;
-                    
-                    // Kan/Kıvılcım parçacık efekti
-                    SDL_Color blood = {231, 76, 60, 255};
-                    create_explosion(enemy->x, enemy->y, blood, 4);
+                    create_explosion(enemy->x, enemy->y, (SDL_Color){231, 76, 60, 255}, 4);
 
-                    // Eğer düşman askeri öldüyse
                     if (enemy->hp <= 0) {
                         enemy->active = false;
-                        create_explosion(enemy->x, enemy->y, (SDL_Color){236, 240, 241, 255}, 8); // Yok olma efekti
-                        units[i].target_unit_idx = -1; // Hedefi boşa çıkar
+                        create_explosion(enemy->x, enemy->y, (SDL_Color){236, 240, 241, 255}, 8); 
+                        units[i].target_unit_idx = -1; 
                     }
                 }
             }
             if (units[i].attack_cooldown > 0) units[i].attack_cooldown--;
-            continue; // Diğer kule hedeflerini es geç, çünkü şu an askerle savaşıyor!
+            continue; 
         }
 
-        // DURUM 2: DÜŞMAN DUVARINA TAKILMA KONTROLÜ (Düşmanlar için geçerli)
+        // DURUM 2: DUVARA TAKILMA KONTROLÜ
         int intercepted_wall_idx = -1;
         if (units[i].team == TEAM_RED) {
             for (int w = 0; w < MAX_WALLS; w++) {
@@ -213,7 +240,7 @@ void update_game_logic() {
             continue;
         }
 
-        // DURUM 3: ETRAFTA ASKER YOKSA KULELERE YÜRÜME MANTIĞI
+        // DURUM 3: ETRAFTA ASKER YOKSA KULELERE YÜRÜME
         float target_x = (units[i].team == TEAM_BLUE) ? SCREEN_WIDTH : 0;
         float target_y = units[i].y;
         float close_d = 99999.0f;
@@ -244,7 +271,6 @@ void update_game_logic() {
                 units[i].attack_cooldown = 60;
                 screen_shake_timer = 8; 
 
-                // PEKKA Splash Damage Alan Hasarı
                 if (units[i].type == CARD_PEKKA) {
                     for(int u=0; u<MAX_UNITS; u++) {
                         if(units[u].active && units[u].team != units[i].team) {
