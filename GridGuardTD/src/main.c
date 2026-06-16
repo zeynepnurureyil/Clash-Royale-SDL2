@@ -1,3 +1,4 @@
+#define SDL_MAIN_HANDLED
 #include "game.h"
 #include <time.h>
 #include <stdlib.h>
@@ -13,6 +14,7 @@ int main(int argc, char* argv[]) {
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
     init_clash_arena();
+
 
     bool running = true;
     SDL_Event event;
